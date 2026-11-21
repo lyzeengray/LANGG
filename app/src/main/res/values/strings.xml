@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">LVNG SPACE</string>
+    <string name="overlay_service_channel">LVNG SPACE Overlay</string>
+    <string name="overlay_service_title">LVNG -X Aktif</string>
+    <string name="overlay_service_desc">Tap logo buat buka Game Control</string>
+    <string name="launch_video_skip">Lewati</string>
+</resources>

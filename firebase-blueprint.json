@@ -1,0 +1,110 @@
+{
+  "entities": {
+    "OwnerRegistration": {
+      "title": "OwnerRegistration",
+      "description": "Verified owner access record created when entering the valid owner code 100214.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the owner."
+        },
+        "ownerCode": {
+          "type": "string",
+          "description": "Owner verification code."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "ownerUid",
+        "ownerCode",
+        "createdAt"
+      ]
+    },
+    "LicenseAccount": {
+      "title": "LicenseAccount",
+      "description": "Cross-device LVNG SPACE user license account managed by Owner and bound exclusively to the first login device.",
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "Unique username (3-32 characters)."
+        },
+        "passwordHash": {
+          "type": "string",
+          "description": "SHA-256 hex digest of the account password."
+        },
+        "createdByUid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the Owner who created this account."
+        },
+        "durationType": {
+          "type": "string",
+          "enum": ["LIFETIME", "DAYS_1", "DAYS_7", "DAYS_30", "CUSTOM"],
+          "description": "Selected license duration tier."
+        },
+        "durationDays": {
+          "type": "integer",
+          "description": "Number of valid days (-1 for LIFETIME, 1..3650 for timed accounts)."
+        },
+        "expiresAtMillis": {
+          "type": "integer",
+          "description": "UTC expiration epoch milliseconds (-1 for LIFETIME)."
+        },
+        "boundDeviceId": {
+          "type": "string",
+          "description": "Unique device installation ID locked on first successful login (empty before first login)."
+        },
+        "boundDeviceName": {
+          "type": "string",
+          "description": "Readable device model name for the locked device."
+        },
+        "boundByUid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user who claimed the device lock (empty before first login)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "username",
+        "passwordHash",
+        "createdByUid",
+        "durationType",
+        "durationDays",
+        "expiresAtMillis",
+        "boundDeviceId",
+        "boundDeviceName",
+        "boundByUid",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/owners/{ownerUid}": {
+      "schema": {
+        "$ref": "#/entities/OwnerRegistration"
+      },
+      "description": "Stores verified owner registrations gated by ownerCode 100214."
+    },
+    "/accounts/{accountId}": {
+      "schema": {
+        "$ref": "#/entities/LicenseAccount"
+      },
+      "description": "Stores cross-device LVNG SPACE accounts indexed by normalized lowercase username."
+    }
+  }
+}

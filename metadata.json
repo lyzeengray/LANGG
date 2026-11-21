@@ -1,0 +1,6 @@
+{
+  "name": "LVNG SPACE",
+  "description": "LVNG SPACE Game Control Center, floating overlay HUD, key mapping manager, and touch calibration suite.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

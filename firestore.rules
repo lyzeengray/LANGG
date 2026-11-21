@@ -1,0 +1,142 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: default deny everything
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string &&
+        id.size() >= 3 &&
+        id.size() <= 128 &&
+        id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isOwner() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/owners/$(request.auth.uid));
+    }
+
+    function isValidOwnerRegistration(data) {
+      return data.ownerUid is string &&
+        data.ownerUid.size() >= 3 &&
+        data.ownerUid.size() <= 128 &&
+        data.ownerUid == request.auth.uid &&
+        data.ownerCode is string &&
+        data.ownerCode == '100214' &&
+        data.createdAt is timestamp &&
+        data.createdAt <= request.time;
+    }
+
+    function isValidLicenseAccount(data) {
+      return data.username is string &&
+        data.username.size() >= 3 &&
+        data.username.size() <= 32 &&
+        data.username.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.passwordHash is string &&
+        data.passwordHash.size() == 64 &&
+        data.createdByUid is string &&
+        data.createdByUid.size() >= 3 &&
+        data.createdByUid.size() <= 128 &&
+        data.durationType in ['LIFETIME', 'DAYS_1', 'DAYS_7', 'DAYS_30', 'CUSTOM'] &&
+        data.durationDays is int &&
+        ((data.durationType == 'LIFETIME' && data.durationDays == -1 && data.expiresAtMillis == -1) ||
+         (data.durationType != 'LIFETIME' && data.durationDays >= 1 && data.durationDays <= 3650 && data.expiresAtMillis is int && data.expiresAtMillis > 0)) &&
+        data.boundDeviceId is string &&
+        data.boundDeviceId.size() <= 128 &&
+        data.boundDeviceName is string &&
+        data.boundDeviceName.size() <= 80 &&
+        data.boundByUid is string &&
+        data.boundByUid.size() <= 128 &&
+        data.createdAt is timestamp &&
+        data.createdAt <= request.time &&
+        data.updatedAt is timestamp &&
+        data.updatedAt <= request.time;
+    }
+
+    match /owners/{ownerUid} {
+      allow get: if isSignedIn() &&
+        isValidId(ownerUid) &&
+        request.auth.uid == ownerUid;
+
+      allow create: if isSignedIn() &&
+        isValidId(ownerUid) &&
+        request.auth.uid == ownerUid &&
+        incoming().keys().hasAll(['ownerUid', 'ownerCode', 'createdAt']) &&
+        incoming().keys().hasOnly(['ownerUid', 'ownerCode', 'createdAt']) &&
+        isValidOwnerRegistration(incoming());
+
+      allow list, update, delete: if false;
+    }
+
+    match /accounts/{accountId} {
+      // Login lookup by exact accountId (normalized lowercase username)
+      allow get: if isSignedIn() && isValidId(accountId);
+
+      // Owner-scoped listing only (must match .whereEqualTo("createdByUid", ownerUid))
+      allow list: if isSignedIn() && resource.data.createdByUid == request.auth.uid;
+
+      // Only verified Owners can create new accounts in unbound state
+      allow create: if isSignedIn() &&
+        isValidId(accountId) &&
+        incoming().keys().hasAll([
+          'username', 'passwordHash', 'createdByUid',
+          'durationType', 'durationDays', 'expiresAtMillis',
+          'boundDeviceId', 'boundDeviceName', 'boundByUid',
+          'createdAt', 'updatedAt'
+        ]) &&
+        incoming().keys().hasOnly([
+          'username', 'passwordHash', 'createdByUid',
+          'durationType', 'durationDays', 'expiresAtMillis',
+          'boundDeviceId', 'boundDeviceName', 'boundByUid',
+          'createdAt', 'updatedAt'
+        ]) &&
+        isValidLicenseAccount(incoming()) &&
+        incoming().createdByUid == request.auth.uid &&
+        incoming().boundDeviceId == '' &&
+        incoming().boundDeviceName == '' &&
+        incoming().boundByUid == '' &&
+        isOwner();
+
+      // Single-device atomic lock claim: allowed ONLY once while account is unbound
+      allow update: if isSignedIn() &&
+        isValidId(accountId) &&
+        isValidLicenseAccount(incoming()) &&
+        existing().boundDeviceId == '' &&
+        incoming().boundDeviceId is string &&
+        incoming().boundDeviceId.size() >= 6 &&
+        incoming().boundDeviceId.size() <= 128 &&
+        incoming().boundByUid == request.auth.uid &&
+        incoming().username == existing().username &&
+        incoming().passwordHash == existing().passwordHash &&
+        incoming().createdByUid == existing().createdByUid &&
+        incoming().durationType == existing().durationType &&
+        incoming().durationDays == existing().durationDays &&
+        incoming().expiresAtMillis == existing().expiresAtMillis &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'boundDeviceId', 'boundDeviceName', 'boundByUid', 'updatedAt'
+        ]);
+
+      // Only the Owner who created the account can delete it
+      allow delete: if isSignedIn() &&
+        isValidId(accountId) &&
+        existing().createdByUid == request.auth.uid &&
+        isOwner();
+    }
+  }
+}
